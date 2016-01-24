@@ -1,0 +1,23 @@
+Easily view HTTP Nmap scan results.
+Takes Nmap scan results from standard input and generates a browser command to open all HTTP results in a new tab.
+
+Usage:
+cat nmap-results.scan | nph.py [-h] [-v] [-i INPUT_FORMAT] [-b BROWSER] [-p PORTS]
+
+optional arguments:
+  -h, --help     show this help message and exit
+  -v, --version  show program's version number and exit
+  -i {g,x,n}     format of Nmap results: ([g]repable, [x]ml, [n]ormal)
+                 (default: grepable)
+  -p PORTS       comma-seperated list of ports to include as HTTP results.
+                 (default:80,443)
+  -b {f,c,i,ch}  browser: ([f]irefox, [c]hrome, [i]ceweasel, [ch]romium)
+                 (default: firefox)
+
+Example:
+cat nmap-results.scan | nph.py
+firefox http://result1.com:80 https://result2.com:443 http://result3:8080 https://result4:8443
+
+Installation:
+cp nph.py /usr/local/bin/nph
+chmod a+x /usr/local/bin/nph
