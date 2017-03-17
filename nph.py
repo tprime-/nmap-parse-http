@@ -5,6 +5,7 @@
 # @tprime_
 #
 
+import xml.etree.ElementTree as ET
 import argparse
 import sys
 import re
@@ -12,6 +13,7 @@ import re
 # Create global variables
 hostnames = []
 ip_addresses = []
+open_ports = []
 
 def output_firefox(hostnames, ip_addresses):
 	print 'firefox', ' '.join(hostnames), ' '.join(ip_addresses)
@@ -38,7 +40,7 @@ def determine_protocol(port, hostname):
 		hostname = 'http://' + hostname + ':' + port
 	return hostname
 
-def grepable_results(browser, ports):
+def grepable_results(ports):
 	# Grab Nmap data from stdin
 	for line in sys.stdin:
 		for port in ports:
@@ -56,7 +58,7 @@ def grepable_results(browser, ports):
 	return (hostnames, ip_addresses)
 
 # This function has messy regex, but it works. 	
-def normal_results(browser, ports):
+def normal_results(ports):
 	data = sys.stdin.read()
 	# Extract each full nmap result
 	m = re.findall('(Nmap scan report for .+?\n\n)', data, re.DOTALL)
@@ -74,33 +76,33 @@ def normal_results(browser, ports):
 					hostnames.append(determine_protocol(port, extr_hostname.group(1)))
 				
 	return (hostnames, ip_addresses)
-
-# Also messy regex	
-def xml_results(browser, ports):
+	
+def xml_results(target_ports):
 	data = sys.stdin.read()
-	m = re.findall('(<host.+?</host>)', data, re.DOTALL)
-	for port in ports:
-		for item in m:
-			http_open = re.search('(<address.*portid="' + port + '"><state state="open")', item, re.DOTALL)
-			if http_open:
-				if "<hostname name" not in http_open.group(1):
-					extr_ip_address = re.search('((?:[0-9]{1,3}\.){3}[0-9]{1,3})', http_open.group(1))
-					ip_addresses.append(determine_protocol(port, extr_ip_address.group(1)))
-				if "<hostname name" in http_open.group(1):
-					 extr_hostname = re.search('<hostname name="(.*)" ', http_open.group(1))
-					 hostnames.append(determine_protocol(port, extr_hostname.group(1)))
-
+	try:
+		root = ET.fromstring(data)
+		for target_port in target_ports:
+			for host in root.findall('host'):
+				ports = host.find('ports').findall('port')
+				for port in ports:
+					if port.find('state').get('state') == 'open' and port.get('portid') == target_port:
+						if not host.find('hostnames').findall('hostname'):
+							ip_addresses.append(determine_protocol(port.get('portid'),host.find('address').get('addr')))	
+						else:
+							hostnames.append(determine_protocol(port.get('portid'), host.find('hostnames').findall('hostname')[0].get('name')))
+	except Exception:
+		print "[!] Error reading XML"
 	return (hostnames, ip_addresses)
 
 def main(args):
 	ports = args.ports.split(',')
 
 	if args.input == 'n':
-		hostnames, ip_addresses = normal_results(args.browser, ports)
+		hostnames, ip_addresses = normal_results(ports)
 	elif args.input == 'x':
-		hostnames, ip_addresses = xml_results(args.browser, ports)
+		hostnames, ip_addresses = xml_results(ports)
 	else:
-		hostnames, ip_addresses = grepable_results(args.browser, ports)
+		hostnames, ip_addresses = grepable_results(ports)
 		
 	if args.browser == 'c':
 		output_chrome(hostnames, ip_addresses)
